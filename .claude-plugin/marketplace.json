@@ -18,8 +18,8 @@
       "homepage": "https://github.com/hwells4/loop-agents"
     },
     {
-      "name": "create-hooks",
-      "description": "Quickly scaffold Claude Code hooks with templates, validation, and conflict analysis",
+      "name": "hook-manager",
+      "description": "Your hooks, handled. Build, debug, and organize Claude Code hooks without the headache.",
       "version": "1.0.0",
       "author": {
         "name": "Harrison Wells"

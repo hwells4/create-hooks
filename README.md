@@ -1,6 +1,6 @@
-# create-hooks
+# Hook Manager
 
-A Claude Code plugin for scaffolding hooks quickly. Generates bash scripts, Python handlers, and settings.json configuration for all hook events.
+Your hooks, handled. A Claude Code plugin that takes the pain out of building, debugging, and organizing Claude Code hooks.
 
 ## Installation
 
@@ -10,58 +10,59 @@ claude plugin install github:hwells4/create-hooks
 
 ## Usage
 
+Just ask:
+
+```
+"I need a hook that validates bash commands"
+"Help me debug my broken hook"
+"What hooks do I have running?"
+```
+
+Or invoke directly:
+
 ```
 /create-hooks:create-hook
 ```
 
-Or with arguments:
-
-```
-/create-hooks:create-hook new PreToolUse validate-bash
-/create-hooks:create-hook debug my-hook.py
-/create-hooks:create-hook template auto-approve
-/create-hooks:create-hook analyze
-```
-
 ## What It Does
 
-- **Scaffolds hooks** with proper boilerplate for any event type
-- **Provides templates** for common patterns (auto-approve, stop gates, context injection)
-- **Analyzes existing hooks** to prevent conflicts before you create new ones
-- **Tests hooks** before deployment
-- **Documents all hook events** with input/output schemas
+- **Scaffolds hooks** - Generates proper boilerplate for any event type so you can focus on logic
+- **Analyzes conflicts** - Checks your existing hooks before creating new ones to prevent chaos
+- **Provides templates** - Ready-to-use patterns for common tasks (auto-approve, stop gates, context injection)
+- **Tests before deploy** - Validates hooks actually work before they touch your workflow
+- **Debugs the weird stuff** - When your hook does something inexplicable, it helps you figure out why
 
 ## Hook Events
 
-| Event | When | Can Block? |
-|-------|------|------------|
-| PreToolUse | Before tool runs | Yes |
-| PostToolUse | After tool succeeds | Feedback only |
-| PermissionRequest | Permission dialog shown | Yes |
-| UserPromptSubmit | User sends prompt | Yes |
-| Stop | Claude finishes | Yes (continue) |
+| Event | When It Fires | Can Block? |
+|-------|---------------|------------|
+| PreToolUse | Before a tool runs | Yes |
+| PostToolUse | After a tool succeeds | Feedback only |
+| PermissionRequest | Permission dialog appears | Yes |
+| UserPromptSubmit | You send a prompt | Yes |
+| Stop | Claude finishes a task | Yes (continue) |
 | SubagentStop | Subagent finishes | Yes (continue) |
 | SessionStart | Session begins | Context + env vars |
 | SessionEnd | Session ends | Cleanup only |
-| PreCompact | Before compaction | No |
+| PreCompact | Before context compaction | No |
 | Notification | System notification | No |
 
 ## Templates Included
 
-| Template | Use Case |
-|----------|----------|
-| `bash-validator.sh` | Block dangerous shell commands |
+| Template | What It Does |
+|----------|--------------|
+| `bash-validator.sh` | Blocks dangerous shell commands |
 | `python-validator.py` | Complex validation with JSON output |
-| `auto-approve.py` | Auto-approve safe operations |
-| `context-injection.py` | Inject context at session start or per-prompt |
-| `stop-gate.py` | Ensure work completion before stopping |
+| `auto-approve.py` | Auto-approves safe operations |
+| `context-injection.py` | Injects context at session start or per-prompt |
+| `stop-gate.py` | Ensures work completion before stopping |
 | `intelligent-stop-prompt.json` | LLM-evaluated task completion |
-| `permission-handler.py` | Handle permission dialogs programmatically |
-| `notification-forwarder.sh` | Forward notifications externally |
+| `permission-handler.py` | Handles permission dialogs programmatically |
+| `notification-forwarder.sh` | Forwards notifications to external services |
 
 ## Scaffold Script
 
-Generate a hook from the command line:
+Generate hooks from the command line:
 
 ```bash
 python3 skills/create-hook/scripts/scaffold-hook.py PreToolUse validate-bash

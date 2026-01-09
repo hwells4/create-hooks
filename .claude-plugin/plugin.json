@@ -1,6 +1,6 @@
 {
-  "name": "create-hooks",
-  "description": "Quickly scaffold Claude Code hooks with templates, validation, and conflict analysis",
+  "name": "hook-manager",
+  "description": "Your hooks, handled. Build, debug, and organize Claude Code hooks without the headache.",
   "version": "1.0.0",
   "author": {
     "name": "Harrison Wells",
@@ -12,6 +12,7 @@
     "claude-code",
     "hooks",
     "automation",
-    "scaffolding"
+    "scaffolding",
+    "hook-manager"
   ]
 }

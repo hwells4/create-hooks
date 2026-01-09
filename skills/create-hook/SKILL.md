@@ -1,6 +1,6 @@
 ---
-name: create-hook
-description: Quickly spin up Claude Code hooks for automation. Generates bash scripts, Python handlers, and settings.json configuration for PreToolUse, PostToolUse, SessionStart, Stop, and other hook events.
+name: hook-manager
+description: Your hooks, handled. Build, debug, and organize Claude Code hooks without the headache. Analyzes existing hooks to prevent conflicts and takes care of boilerplate so you can focus on logic.
 invocation: user
 context_budget:
   skill_md: 200
@@ -8,7 +8,7 @@ context_budget:
 ---
 
 <objective>
-Generate Claude Code hooks quickly with proper configuration, input handling, and output formatting. Analyzes existing hooks to prevent conflicts. Takes care of boilerplate so you focus on logic.
+Hook Manager helps you build Claude Code hooks properly. It handles the tedious parts—boilerplate, JSON schemas, settings configuration—so you can focus on what your hook actually does. Before creating anything, it checks what hooks you already have running to make sure nothing steps on each other.
 </objective>
 
 <intake>
@@ -20,12 +20,12 @@ Generate Claude Code hooks quickly with proper configuration, input handling, an
 
 **If bare `/create-hook` with no arguments, ask:**
 
-What would you like to do?
+What do you need?
 
-1. **Create a new hook** - Build a hook from scratch with analysis
+1. **Create a new hook** - I'll check your existing hooks first, then build something that plays nice with them
 2. **Edit an existing hook** - Modify a hook in .claude/hooks/
-3. **Debug a hook** - Troubleshoot a broken or misbehaving hook
-4. **Analyze hooks** - Inventory existing hooks, find gaps
+3. **Debug a hook** - Something's not working? Let's figure out why
+4. **Analyze hooks** - See what hooks you have running and find gaps
 5. **Something else** - Templates, settings, MCP tools, security, env vars
 </intake>
 
