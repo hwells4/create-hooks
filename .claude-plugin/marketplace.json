@@ -1,0 +1,32 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "dodo-digital",
+  "description": "Plugins by Dodo Digital",
+  "owner": {
+    "name": "Dodo Digital"
+  },
+  "plugins": [
+    {
+      "name": "loop-agents",
+      "description": "Create and manage autonomous Loop Agents in Claude Code",
+      "version": "1.0.0",
+      "author": {
+        "name": "Harrison Wells"
+      },
+      "source": "github:hwells4/loop-agents",
+      "category": "development",
+      "homepage": "https://github.com/hwells4/loop-agents"
+    },
+    {
+      "name": "create-hooks",
+      "description": "Quickly scaffold Claude Code hooks with templates, validation, and conflict analysis",
+      "version": "1.0.0",
+      "author": {
+        "name": "Harrison Wells"
+      },
+      "source": "github:hwells4/create-hooks",
+      "category": "development",
+      "homepage": "https://github.com/hwells4/create-hooks"
+    }
+  ]
+}
