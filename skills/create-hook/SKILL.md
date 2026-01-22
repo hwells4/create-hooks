@@ -1,6 +1,6 @@
 ---
-name: hook-manager
-description: Your hooks, handled. Build, debug, and organize Claude Code hooks without the headache. Analyzes existing hooks to prevent conflicts and takes care of boilerplate so you can focus on logic.
+name: create-hook
+description: Quickly scaffold Claude Code hooks with templates, validation, and conflict analysis. Analyzes existing hooks to prevent conflicts and takes care of boilerplate so you can focus on logic.
 invocation: user
 context_budget:
   skill_md: 200
@@ -17,6 +17,8 @@ Hook Manager helps you build Claude Code hooks properly. It handles the tedious 
 - `/create-hook debug my-hook.py` → Debug workflow
 - `/create-hook template auto-approve` → Show template
 - `/create-hook analyze` → Run inventory agent
+- `/create-hook validate` → Run hook validator
+- `/create-hook validate my-hook.py` → Validate specific hook
 
 **If bare `/create-hook` with no arguments, ask:**
 
@@ -25,8 +27,17 @@ What do you need?
 1. **Create a new hook** - I'll check your existing hooks first, then build something that plays nice with them
 2. **Edit an existing hook** - Modify a hook in .claude/hooks/
 3. **Debug a hook** - Something's not working? Let's figure out why
-4. **Analyze hooks** - See what hooks you have running and find gaps
-5. **Something else** - Templates, settings, MCP tools, security, env vars
+4. **Validate hooks** - Check that hooks are correctly configured and ready for use
+5. **Analyze hooks** - See what hooks you have running and find gaps
+6. **Something else** - Templates, settings, MCP tools, security, env vars
+
+**When creating a new hook, ALWAYS ask about installation level:**
+
+Where should this hook be installed?
+
+1. **Project level** (`.claude/settings.json`) - Runs only in THIS project, checked into git
+2. **User level** (`~/.claude/settings.json`) - Runs in ALL your projects
+3. **Local only** (`.claude/settings.local.json`) - Project-level but gitignored (for personal/sensitive hooks)
 </intake>
 
 <routing>
@@ -39,6 +50,7 @@ What do you need?
 | Create component-scoped hook | component-scoped-hooks.md, hook-events.md | Define in frontmatter → test |
 | Edit existing hook | hook-events.md, json-output.md, debugging.md | Read existing hook → modify → test |
 | Debug hook | debugging.md, hook-events.md | Diagnose → fix → test |
+| **Validate hooks** | debugging.md | Run `scripts/validate-hook.py --project` |
 | Analyze hooks | sub-agents.md | Spawn inventory agent |
 | MCP tools | mcp-tools.md, hook-events.md | Show patterns |
 | SessionStart/env vars | session-env-vars.md, hook-events.md | Show patterns |
@@ -49,11 +61,14 @@ What do you need?
 
 <essential_principles>
 1. **Analyze first** - Before creating, understand existing hooks to prevent conflicts
-2. **Settings location** - User (`~/.claude/settings.json`), project (`.claude/settings.json`), or local (`.claude/settings.local.json`)
+2. **Ask installation level** - ALWAYS ask user: project, user, or local level
+   - **Project** (`.claude/settings.json`) - This project only, version controlled
+   - **User** (`~/.claude/settings.json`) - ALL projects for this user
+   - **Local** (`.claude/settings.local.json`) - This project only, gitignored
 3. **Input via stdin** - Hooks receive JSON with session_id, tool_name, tool_input, etc.
 4. **Output via exit codes** - 0=success, 2=blocking error (stderr shown to Claude)
 5. **Parallel execution** - All matching hooks run simultaneously (60s timeout default)
-6. **Test before deploy** - Run hooks manually before adding to settings
+6. **Validate after creation** - Run `scripts/validate-hook.py` to confirm proper installation
 </essential_principles>
 
 <quick_reference>
@@ -135,9 +150,11 @@ See `references/sub-agents.md` for full prompt templates.
 <success_criteria>
 - [ ] Existing hooks analyzed (no surprise conflicts)
 - [ ] Hook script created with proper shebang and permissions
-- [ ] Settings.json updated with hook configuration
+- [ ] User asked about installation level (project/user/local)
+- [ ] Settings.json updated at correct level per user choice
 - [ ] Input parsing handles JSON from stdin
 - [ ] Output uses correct exit codes/JSON format
 - [ ] Script tested with multiple inputs before deployment
+- [ ] **Validator run** to confirm hook is properly installed (`scripts/validate-hook.py`)
 - [ ] Security: inputs validated, paths sanitized, sensitive files protected
 </success_criteria>
