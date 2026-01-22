@@ -1,10 +1,6 @@
 ---
 name: create-hook
 description: Quickly scaffold Claude Code hooks with templates, validation, and conflict analysis. Analyzes existing hooks to prevent conflicts and takes care of boilerplate so you can focus on logic.
-invocation: user
-context_budget:
-  skill_md: 200
-  max_references: 5
 ---
 
 <objective>
