@@ -1,6 +1,6 @@
 # Hook Manager
 
-A Claude Code plugin that takes makes it easy to build, debug, deploy and manage Claude Code hooks.
+A Claude Code plugin that makes it easy to build, deploy and manage Claude Code hooks.
 
 ## Installation
 
