@@ -1,5 +1,80 @@
 # Hook Debugging & Execution Details
 
+## Quick Debug: Is My Hook Firing?
+
+The fastest way to confirm your hooks are running is with the debug wrapper.
+
+### 1. Copy the wrapper to your project
+
+```bash
+cp templates/debug-wrap.sh .claude/hooks/debug-wrap.sh
+chmod +x .claude/hooks/debug-wrap.sh
+```
+
+### 2. Wrap your hook command in settings.json
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/debug-wrap.sh python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/validate.py"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 3. View the log
+
+```bash
+# Simple: tail the log
+tail -f .claude/hooks/.debug.log
+
+# Friendly: use the viewer
+python3 scripts/hook-log.py
+
+# Live watch
+python3 scripts/hook-log.py --watch
+
+# Only errors
+python3 scripts/hook-log.py --errors
+```
+
+### What you'll see
+
+```
+HOOK ACTIVITY (.claude/hooks/.debug.log)
+------------------------------------------------------------
+14:32:01  ✓  python3 validate.py
+14:32:15  ✗  python3 validate.py                    exit=2
+14:33:02  ✓  bash notify.sh
+------------------------------------------------------------
+3 invocations, 1 blocked
+
+Tip: If a hook isn't appearing here, check that it's wrapped with debug-wrap.sh
+```
+
+- `✓` = exit 0 (success)
+- `✗` = exit 2 (blocked something)
+- `!` = exit 1 (error, but didn't block)
+
+### Overhead
+
+The wrapper adds ~0.5ms per hook invocation. Safe to leave enabled.
+
+### Disable debugging
+
+Remove the `debug-wrap.sh` prefix from your command in settings.json.
+
+---
+
 ## Execution Details
 
 ### Timeout

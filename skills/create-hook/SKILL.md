@@ -23,9 +23,10 @@ What do you need?
 1. **Create a new hook** - I'll check your existing hooks first, then build something that plays nice with them
 2. **Edit an existing hook** - Modify a hook in .claude/hooks/
 3. **Debug a hook** - Something's not working? Let's figure out why
-4. **Validate hooks** - Check that hooks are correctly configured and ready for use
-5. **Analyze hooks** - See what hooks you have running and find gaps
-6. **Something else** - Templates, settings, MCP tools, security, env vars
+4. **View hook logs** - See which hooks are firing (`scripts/hook-log.py`)
+5. **Validate hooks** - Check that hooks are correctly configured and ready for use
+6. **Analyze hooks** - See what hooks you have running and find gaps
+7. **Something else** - Templates, settings, MCP tools, security, env vars
 
 **When creating a new hook, ALWAYS ask about installation level:**
 
@@ -47,6 +48,7 @@ Where should this hook be installed?
 | Edit existing hook | hook-events.md, json-output.md, debugging.md | Read existing hook → modify → test |
 | Debug hook | debugging.md, hook-events.md | Diagnose → fix → test |
 | **Validate hooks** | debugging.md | Run `scripts/validate-hook.py --project` |
+| **View hook logs** | debugging.md | Run `scripts/hook-log.py` or `tail -f .claude/hooks/.debug.log` |
 | Analyze hooks | sub-agents.md | Spawn inventory agent |
 | MCP tools | mcp-tools.md, hook-events.md | Show patterns |
 | SessionStart/env vars | session-env-vars.md, hook-events.md | Show patterns |
@@ -61,10 +63,11 @@ Where should this hook be installed?
    - **Project** (`.claude/settings.json`) - This project only, version controlled
    - **User** (`~/.claude/settings.json`) - ALL projects for this user
    - **Local** (`.claude/settings.local.json`) - This project only, gitignored
-3. **Input via stdin** - Hooks receive JSON with session_id, tool_name, tool_input, etc.
-4. **Output via exit codes** - 0=success, 2=blocking error (stderr shown to Claude)
-5. **Parallel execution** - All matching hooks run simultaneously (60s timeout default)
-6. **Validate after creation** - Run `scripts/validate-hook.py` to confirm proper installation
+3. **Debug wrapper by default** - Always include `debug-wrap.sh` and wrap commands with it (user can opt out)
+4. **Input via stdin** - Hooks receive JSON with session_id, tool_name, tool_input, etc.
+5. **Output via exit codes** - 0=success, 2=blocking error (stderr shown to Claude)
+6. **Parallel execution** - All matching hooks run simultaneously (60s timeout default)
+7. **Validate after creation** - Run `scripts/validate-hook.py` to confirm proper installation
 </essential_principles>
 
 <quick_reference>
@@ -123,6 +126,7 @@ Where should this hook be installed?
 <templates_index>
 | Template | Use Case |
 |----------|----------|
+| templates/debug-wrap.sh | **Debug wrapper** - logs hook invocations (~0.5ms overhead) |
 | templates/bash-validator.sh | Block dangerous shell commands |
 | templates/python-validator.py | Complex validation with JSON |
 | templates/auto-approve.py | Auto-approve safe operations |
@@ -146,6 +150,8 @@ See `references/sub-agents.md` for full prompt templates.
 <success_criteria>
 - [ ] Existing hooks analyzed (no surprise conflicts)
 - [ ] Hook script created with proper shebang and permissions
+- [ ] **Debug wrapper installed** (`debug-wrap.sh` copied to `.claude/hooks/`) - unless user explicitly opts out
+- [ ] **Settings command uses debug wrapper** - unless user explicitly opts out
 - [ ] User asked about installation level (project/user/local)
 - [ ] Settings.json updated at correct level per user choice
 - [ ] Input parsing handles JSON from stdin

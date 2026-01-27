@@ -1,8 +1,26 @@
 # Hook Manager
 
-A Claude Code plugin that makes it easy to build, deploy and manage Claude Code hooks.
+A Claude Code plugin that makes it easy to build, debug, and manage Claude Code hooks.
+
+**Hooks you create just work.** Built-in validation confirms your hooks are configured correctly, and automatic telemetry lets you see exactly when they fire.
 
 ## Installation
+
+**From inside Claude Code:**
+
+```
+/plugin marketplace add dodo-digital/dodo-marketplace
+/plugin install create-hooks
+```
+
+**From terminal:**
+
+```bash
+claude plugin marketplace add dodo-digital/dodo-marketplace
+claude plugin install create-hooks
+```
+
+**Or install directly from GitHub:**
 
 ```bash
 claude plugin install github:hwells4/create-hooks
@@ -24,13 +42,23 @@ Or invoke directly:
 /create-hooks:create-hook
 ```
 
+## Why This Plugin?
+
+**Hooks that just work.** Every hook you create is:
+
+- **Validated** - Linting confirms syntax, permissions, and settings are correct before you deploy
+- **Observable** - Built-in telemetry shows you when hooks fire and what they return
+- **Conflict-free** - Analyzes existing hooks to prevent them from stepping on each other
+
+No more guessing if your hook is running. No more silent failures.
+
 ## What It Does
 
-- **Scaffolds hooks** - Generates proper boilerplate for any event type so you can focus on logic
-- **Analyzes conflicts** - Checks your existing hooks before creating new ones to prevent chaos
-- **Provides templates** - Ready-to-use patterns for common tasks (auto-approve, stop gates, context injection)
-- **Tests before deploy** - Validates hooks actually work before they touch your workflow
-- **Debugs the weird stuff** - When your hook does something inexplicable, it helps you figure out why
+- **Creates hooks** - Generates working hooks for any event type in any language
+- **Validates before deploy** - Catches configuration errors before they bite you
+- **Tracks execution** - See exactly when hooks fire and what they do
+- **Debugs issues** - When something's wrong, helps you figure out why
+- **Provides templates** - Ready-to-use patterns for common tasks
 
 ## Hook Events
 
@@ -56,31 +84,20 @@ Or invoke directly:
 | `auto-approve.py` | Auto-approves safe operations |
 | `context-injection.py` | Injects context at session start or per-prompt |
 | `stop-gate.py` | Ensures work completion before stopping |
-| `intelligent-stop-prompt.json` | LLM-evaluated task completion |
 | `permission-handler.py` | Handles permission dialogs programmatically |
 | `notification-forwarder.sh` | Forwards notifications to external services |
-
-## Scaffold Script
-
-Generate hooks from the command line:
-
-```bash
-python3 skills/create-hook/scripts/scaffold-hook.py PreToolUse validate-bash
-python3 skills/create-hook/scripts/scaffold-hook.py SessionStart load-context --lang=bash
-python3 skills/create-hook/scripts/scaffold-hook.py Stop ensure-tests
-```
 
 ## Quick Reference
 
 **Exit Codes:**
-- `exit 0` - Success (stdout shown in verbose mode)
-- `exit 2` - Block action (stderr shown to Claude)
-- `exit 1` - Non-blocking error (logged only)
+- `exit 0` - Success
+- `exit 2` - Block the action
+- `exit 1` - Error (logged, doesn't block)
 
 **Settings Location:**
-- User: `~/.claude/settings.json`
-- Project: `.claude/settings.json`
-- Local: `.claude/settings.local.json`
+- User: `~/.claude/settings.json` (all projects)
+- Project: `.claude/settings.json` (this project, version controlled)
+- Local: `.claude/settings.local.json` (this project, gitignored)
 
 ## License
 
