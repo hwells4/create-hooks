@@ -1,174 +1,226 @@
 # Hook Manager
 
-A Claude Code plugin that makes it easy to build, debug, and manage Claude Code hooks.
+Build Claude Code hooks without the guesswork.
 
-**Hooks you create just work.** Built-in validation confirms your hooks are configured correctly, and automatic telemetry lets you see exactly when they fire. When you have multiple hooks on the same event, the dispatcher pattern keeps them fast and conflict-free.
+Hooks let you run arbitrary code at specific points in Claude Code's lifecycle — before a tool runs, after a file is written, when a session starts, when Claude stops. They're the extension point for enforcing rules, injecting context, automating approvals, and wiring Claude into your workflow.
+
+This plugin handles the tedious parts: boilerplate, JSON schemas, settings configuration, conflict detection, validation, and debugging. You describe what you want, it builds a working hook.
 
 ## Installation
 
-**From inside Claude Code:**
+```
+/plugin install github:hwells4/create-hooks
+```
+
+Or via a marketplace:
 
 ```
 /plugin marketplace add dodo-digital/dodo-marketplace
 /plugin install create-hooks
 ```
 
-**From terminal:**
+## What Are Hooks?
 
-```bash
-claude plugin marketplace add dodo-digital/dodo-marketplace
-claude plugin install create-hooks
+Hooks are shell commands or scripts that Claude Code executes at defined points in its lifecycle. They receive JSON on stdin with context about what's happening, and they respond with exit codes and optional output.
+
+```
+You type a prompt
+  → UserPromptSubmit hooks fire (can modify or block the prompt)
+
+Claude decides to run a tool
+  → PreToolUse hooks fire (can block the tool or inject context)
+
+The tool executes
+  → PostToolUse hooks fire (can give Claude feedback on what it just did)
+
+Claude finishes
+  → Stop hooks fire (can tell Claude to keep going)
 ```
 
-**Or install directly from GitHub:**
+Hooks are configured in your settings file and can be scoped to specific tools using matchers:
 
-```bash
-claude plugin install github:hwells4/create-hooks
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/validate-code.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
 ```
+
+That's it. Every time Claude writes or edits a file, your script runs.
+
+## Why Use This Plugin?
+
+Writing a hook from scratch means getting the JSON schema right, setting the correct exit codes, configuring settings with the right matcher syntax, making the script executable, and hoping it doesn't conflict with your other hooks. Most people get at least one of those wrong.
+
+This plugin:
+
+- **Analyzes your existing hooks first** so new ones don't conflict
+- **Generates correct boilerplate** for any event type, in any language
+- **Validates everything** — syntax, permissions, settings config, exit codes
+- **Adds telemetry by default** so you can see exactly when hooks fire
+- **Scales with you** — from a single hook to a full dispatcher routing to dozens of checks
 
 ## Usage
 
-Just ask:
+Describe what you want in plain language:
 
 ```
-"I need a hook that validates bash commands"
-"Help me debug my broken hook"
-"What hooks do I have running?"
-"I have five PostToolUse hooks and they keep conflicting"
-"Help me consolidate my hooks into a dispatcher"
+"Block any bash command that runs rm -rf"
+"Auto-approve all file reads in my project"
+"Inject my coding standards at session start"
+"Validate that every React component has a testID"
+"Log all tool usage to a file"
 ```
 
 Or invoke directly:
 
 ```
 /create-hooks:create-hook
-/create-hooks:create-hook dispatcher PostToolUse
 ```
-
-## Why This Plugin?
-
-**Hooks that just work.** Every hook you create is:
-
-- **Validated** - Linting confirms syntax, permissions, and settings are correct before you deploy
-- **Observable** - Built-in telemetry shows you when hooks fire and what they return
-- **Conflict-free** - Analyzes existing hooks to prevent them from stepping on each other
-- **Dispatcher-aware** - Automatically detects when multiple hooks should be consolidated
-
-No more guessing if your hook is running. No more silent failures.
-
-## What It Does
-
-- **Creates hooks** - Generates working hooks for any event type in any language
-- **Consolidates hooks** - Merges multiple hooks on the same event into a single dispatcher
-- **Validates before deploy** - Catches configuration errors before they bite you
-- **Tracks execution** - See exactly when hooks fire and what they do
-- **Debugs issues** - When something's wrong, helps you figure out why
-- **Provides templates** - Ready-to-use patterns for common tasks
-
-## The Dispatcher Pattern
-
-When you have 3+ hooks on the same event, they all fire in parallel — each one parsing the same JSON, resolving the same file path, classifying the same file type. A dispatcher replaces them with **one process** that does the shared work once and routes to individual checks.
-
-**Before** — 9 hooks, 9 processes, 9 JSON parses:
-
-```
-PostToolUse "Write" fires → 9 separate hooks:
-  ├── testids.sh          (parse JSON, resolve path, classify, check) ~12ms
-  ├── accessibility.sh    (parse JSON, resolve path, classify, check) ~14ms
-  ├── security.sh         (parse JSON, resolve path, classify, check) ~12ms
-  └── ... 6 more doing the same shared work
-  Total: 9 processes, 9 JSON parses, 9 settings entries
-```
-
-**After** — 1 dispatcher, 1 process, 1 JSON parse:
-
-```
-PostToolUse "Write" fires → 1 dispatcher:
-  └── post-tool-dispatcher.sh  (parse ONCE, classify ONCE)  ~18ms
-      ├── testids.sh          → pre-parsed args, just the check
-      ├── accessibility.sh    → pre-parsed args, just the check
-      ├── security.sh         → pre-parsed args, just the check
-      └── ... 6 more, only the ones that apply
-  Total: 1 process, 1 JSON parse, 1 settings entry
-```
-
-### How it works
-
-The dispatcher reads JSON from stdin once, resolves the file path, classifies the file type, then loops over scripts in a `checks/` directory. Each check receives pre-computed arguments — no JSON parsing needed.
-
-```
-.claude/hooks/
-  post-tool-dispatcher.sh     ← registered in settings (one entry)
-  checks/                     ← auto-discovered (no settings changes)
-    accessibility.sh
-    security.sh
-    testids.sh
-    theme-tokens.sh
-```
-
-### Adding a new check
-
-Drop a file in `checks/` and make it executable. That's it. No settings changes. The dispatcher discovers it automatically.
-
-```bash
-cat > .claude/hooks/checks/no-console-log.sh << 'EOF'
-#!/bin/bash
-# Check: no console.log in production code
-# Args: $1=file_path $2=rel_path $3=is_test $4=is_config
-
-file_path="$1" rel_path="$2" is_test="$3"
-
-# Skip test files
-if [[ "$is_test" == "true" ]]; then exit 0; fi
-
-violations=$(grep -n 'console\.log' "${file_path}" 2>/dev/null || true)
-
-if [ -n "${violations}" ]; then
-    echo "console.log found in ${rel_path}:"
-    echo ""
-    echo "${violations}"
-    echo ""
-    echo "Remove console.log statements before committing."
-    exit 2
-fi
-exit 0
-EOF
-chmod +x .claude/hooks/checks/no-console-log.sh
-```
-
-### When to use a dispatcher
-
-| Situation | Recommendation |
-|-----------|---------------|
-| 3+ hooks on the same event | Use a dispatcher |
-| Hooks share work (JSON parse, path resolve) | Use a dispatcher |
-| You want "drop a file" extensibility | Use a dispatcher |
-| Only 1-2 hooks per event | Standalone hooks are fine |
-| Hooks do fundamentally different things | Keep them separate |
-
-The plugin detects this automatically — when you create a new hook and there are already 2+ hooks on that event, it recommends consolidating into a dispatcher first.
-
-### Two dispatcher flavors
-
-| Template | Best For |
-|----------|----------|
-| `dispatcher.sh` | Simple pattern checks (grep, awk). Checks are separate files in `checks/`. Recommended for most use cases. |
-| `dispatcher.py` | Complex logic (AST parsing, API calls). Handlers are functions in one file. Better when checks share data structures. |
 
 ## Hook Events
 
-| Event | When It Fires | Can Block? |
-|-------|---------------|------------|
-| PreToolUse | Before a tool runs | Yes |
-| PostToolUse | After a tool succeeds | Feedback only |
-| PermissionRequest | Permission dialog appears | Yes |
-| UserPromptSubmit | You send a prompt | Yes |
-| Stop | Claude finishes a task | Yes (continue) |
-| SubagentStop | Subagent finishes | Yes (continue) |
-| SessionStart | Session begins | Context + env vars |
-| SessionEnd | Session ends | Cleanup only |
-| PreCompact | Before context compaction | No |
-| Notification | System notification | No |
+| Event | When It Fires | What It Can Do |
+|-------|---------------|----------------|
+| **PreToolUse** | Before a tool runs | Block it, modify it, or inject context |
+| **PostToolUse** | After a tool succeeds | Give Claude feedback on what it just did |
+| **UserPromptSubmit** | You send a prompt | Rewrite it, block it, or add context |
+| **PermissionRequest** | Permission dialog appears | Auto-approve or auto-deny |
+| **Stop** | Claude finishes a task | Tell it to keep going |
+| **SubagentStop** | A subagent finishes | Tell it to keep going |
+| **SessionStart** | Session begins | Set env vars, inject context |
+| **SessionEnd** | Session ends | Clean up resources |
+| **PreCompact** | Before context compaction | Add notes to preserve |
+| **Notification** | System notification | Forward to Slack, email, etc. |
+
+## Examples
+
+### Block dangerous commands
+
+A `PreToolUse` hook that prevents Claude from running destructive shell commands:
+
+```bash
+#!/bin/bash
+# Reads JSON from stdin, checks the command
+JSON=$(cat)
+command=$(echo "$JSON" | jq -r '.tool_input.command // empty')
+
+if echo "$command" | grep -qE 'rm\s+-rf|DROP\s+TABLE|:(){ :|:& };:'; then
+    echo "Blocked dangerous command: $command" >&2
+    exit 2
+fi
+exit 0
+```
+
+### Auto-approve safe operations
+
+A `PreToolUse` hook that auto-approves reads and searches:
+
+```python
+#!/usr/bin/env python3
+import json, sys
+
+data = json.load(sys.stdin)
+safe_tools = ["Read", "Glob", "Grep", "WebSearch"]
+
+if data.get("tool_name") in safe_tools:
+    json.dump({"decision": "approve"}, sys.stdout)
+    sys.exit(0)
+
+sys.exit(0)
+```
+
+### Inject context at session start
+
+A `SessionStart` hook that loads project-specific instructions:
+
+```bash
+#!/bin/bash
+if [ -f ".claude/project-context.md" ]; then
+    context=$(cat .claude/project-context.md)
+    echo "$context"
+fi
+exit 0
+```
+
+### Enforce coding standards on every file write
+
+A `PostToolUse` hook that checks files after Claude writes them:
+
+```bash
+#!/bin/bash
+JSON=$(cat)
+file_path=$(echo "$JSON" | jq -r '.tool_input.file_path // empty')
+
+# Only check code files
+case "$file_path" in
+    *.ts|*.tsx|*.js|*.jsx) ;;
+    *) exit 0 ;;
+esac
+
+# Check for console.log
+violations=$(grep -n 'console\.log' "$file_path" 2>/dev/null || true)
+if [ -n "$violations" ]; then
+    echo "Found console.log statements — remove before committing:"
+    echo "$violations"
+    exit 2
+fi
+exit 0
+```
+
+## Structuring Hooks for Scale
+
+A single hook is simple. But as your project grows, you'll want hooks that are fast, easy to add, and don't step on each other.
+
+### Keep hooks focused
+
+One hook, one job. A hook that validates bash commands shouldn't also check file permissions. Smaller hooks are easier to test, debug, and reuse.
+
+### Use matchers to limit scope
+
+Don't run a file validation hook on every tool call. Use matchers to target specific tools:
+
+```json
+{
+  "matcher": "Write|Edit|MultiEdit",
+  "hooks": [{ "type": "command", "command": ".claude/hooks/validate-code.sh" }]
+}
+```
+
+### Bail early
+
+Hooks run on every matching event. The fastest hook is one that exits immediately when it doesn't apply:
+
+```bash
+# Skip non-code files in the first 5 lines
+case "$file_path" in
+    *.ts|*.tsx|*.js|*.jsx) ;;
+    *) exit 0 ;;
+esac
+```
+
+### Consolidate when it gets crowded
+
+When you have several hooks on the same event all doing similar work — parsing the same JSON, resolving the same file path — consider a dispatcher: one entry point that does the shared work once and routes to individual check scripts. The plugin includes templates for this and will recommend it automatically when it detects the opportunity.
+
+### Use the debug wrapper
+
+Every hook this plugin creates includes a telemetry wrapper by default. It logs when hooks fire, what they return, and how long they take — with less than 1ms overhead:
+
+```bash
+tail -f .claude/hooks/.debug.log
+```
 
 ## Templates Included
 
@@ -181,28 +233,24 @@ The plugin detects this automatically — when you create a new hook and there a
 | `stop-gate.py` | Ensures work completion before stopping |
 | `permission-handler.py` | Handles permission dialogs programmatically |
 | `notification-forwarder.sh` | Forwards notifications to external services |
-| `dispatcher.sh` | Shell dispatcher — routes to `checks/` directory |
-| `dispatcher.py` | Python dispatcher — routes to handler functions |
+| `dispatcher.sh` | Routes multiple checks through one entry point |
+| `dispatcher.py` | Python equivalent for complex routing logic |
 
 ## Quick Reference
 
-**Exit Codes:**
-- `exit 0` - Success
-- `exit 2` - Block the action
-- `exit 1` - Error (logged, doesn't block)
+**Exit codes:**
+- `0` — Success (hook passes, no action taken)
+- `2` — Block the action (stderr shown to Claude as feedback)
+- `1` — Error (logged, doesn't block)
 
-**Settings Location:**
+**Input:** JSON on stdin with `tool_name`, `tool_input`, `tool_result`, `session_id`
+
+**Settings locations:**
+- Project: `.claude/settings.json` (version controlled)
 - User: `~/.claude/settings.json` (all projects)
-- Project: `.claude/settings.json` (this project, version controlled)
-- Local: `.claude/settings.local.json` (this project, gitignored)
+- Local: `.claude/settings.local.json` (gitignored)
 
-**Dispatcher Check Interface:**
-```
-$1 = file_path    (absolute)
-$2 = rel_path     (relative, for display)
-$3 = is_test      ("true" or "false")
-$4 = is_config    ("true" or "false")
-```
+**Hooks run in parallel.** All matching hooks fire simultaneously with a 60-second timeout.
 
 ## License
 
