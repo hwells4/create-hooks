@@ -109,6 +109,9 @@ ANALYSIS TASKS:
    - Hooks that complement each other
    - Shared validation patterns
    - Opportunities to consolidate
+6. **Dispatcher recommendation**: If 2+ hooks exist on the same event with overlapping matchers,
+   STRONGLY recommend consolidating into a dispatcher pattern (see references/dispatcher-pattern.md).
+   A dispatcher replaces N hooks with one entry point + a checks/ directory.
 
 CONFLICT TYPES:
 - **Race condition**: Both hooks modify state, order matters
@@ -137,6 +140,11 @@ OUTPUT FORMAT:
 ### Recommendations
 1. {recommendation_1}
 2. {recommendation_2}
+
+### Dispatcher Recommendation
+{If 2+ hooks on same event: "RECOMMEND DISPATCHER" with rationale.
+ If dispatcher already exists: "ADD CHECK to existing dispatcher."
+ If 0-1 hooks: "Standalone hook is fine for now."}
 
 ### Suggested Approach
 {How to implement the new hook given the existing landscape}
