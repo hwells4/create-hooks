@@ -1,7 +1,7 @@
 {
   "name": "create-hooks",
   "description": "Quickly scaffold Claude Code hooks with templates, validation, and conflict analysis",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": {
     "name": "Harrison Wells",
     "url": "https://github.com/hwells4"
