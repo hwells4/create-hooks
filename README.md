@@ -9,14 +9,8 @@ This plugin handles the tedious parts: boilerplate, JSON schemas, settings confi
 ## Installation
 
 ```
-/plugin install github:hwells4/create-hooks
-```
-
-Or via a marketplace:
-
-```
-/plugin marketplace add dodo-digital/dodo-marketplace
-/plugin install create-hooks
+/plugin marketplace add https://github.com/hwells4/hwells4-marketplace.git
+/plugin install create-hooks@hwells4-plugins
 ```
 
 ## What Are Hooks?
