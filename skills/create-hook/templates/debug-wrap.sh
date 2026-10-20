@@ -1,23 +1,35 @@
-#!/bin/bash
-# debug-wrap.sh - Minimal hook wrapper for debugging
+#!/usr/bin/env bash
+# debug-wrap.sh - log every run of a hook: time, runtime, event, exit code, duration.
 #
-# Logs when hooks fire and their exit codes with ~0.5ms overhead.
-# Use by wrapping your hook command in settings.json:
+# Opt-in while debugging; remove it once the hook behaves. Wrap the configured command:
+#   Before: "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-bash.sh"
+#   After:  "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/debug-wrap.sh \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-bash.sh"
 #
-#   Before: "command": "python3 .claude/hooks/my-hook.py"
-#   After:  "command": ".claude/hooks/debug-wrap.sh python3 .claude/hooks/my-hook.py"
-#
-# View logs with: tail -f .claude/hooks/.debug.log
-# Or use: python3 scripts/hook-log.py (in this plugin)
+# Log: ${HOOK_DEBUG_LOG:-$HOME/.cache/agent-hooks/debug.log}
+# View: python3 scripts/hook-log.py   (in this skill)
 
-LOG="${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/.debug.log"
+LOG="${HOOK_DEBUG_LOG:-$HOME/.cache/agent-hooks/debug.log}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null
 
-# Pass stdin through to the hook, capture exit code
-cat | "$@"
-CODE=$?
+now_ms() {
+    if [ -n "${EPOCHREALTIME:-}" ]; then
+        local t=${EPOCHREALTIME/[.,]/}
+        echo $(( t / 1000 ))
+    else
+        perl -MTime::HiRes=time -e 'printf "%d\n", time * 1000'
+    fi
+}
 
-# Log: timestamp, exit code, hook command (just the script name)
-echo "$(date '+%H:%M:%S') exit=$CODE ${1##*/} ${2##*/}" >> "$LOG"
+input=$(< /dev/stdin)
+event=unknown
+[[ $input =~ \"hook_event_name\"[[:space:]]*:[[:space:]]*\"([A-Za-z]+)\" ]] && event=${BASH_REMATCH[1]}
+runtime=claude
+[[ $input =~ \"turn_id\" ]] && runtime=codex
 
-exit $CODE
+start=$(now_ms)
+printf '%s' "$input" | "$@"
+code=$?
+elapsed=$(( $(now_ms) - start ))
+
+printf '%s %s %s exit=%s %sms %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$runtime" "$event" "$code" "$elapsed" "${1##*/}" >> "$LOG"
+exit $code

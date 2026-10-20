@@ -1,91 +1,52 @@
-#!/bin/bash
-# Template: Shell dispatcher with plugin checks
-# Event: PostToolUse (adapt for other events)
-# Purpose: Single hook that runs all checks in a checks/ directory.
+#!/usr/bin/env bash
+# Template: one registered hook that runs every check in checks/
+# Event: any; written for PreToolUse or PostToolUse on Write|Edit
 #
-# This is the recommended dispatcher pattern. Each check is a separate
-# script in checks/ that receives pre-parsed arguments. To add a new
-# check, drop a .sh file in checks/ and make it executable.
-#
-# Check interface: $1=file_path $2=rel_path $3=is_test $4=is_config
-# Check exit codes: 0=pass, 2=warning (stdout shown to Claude)
-#
-# See references/dispatcher-pattern.md for the full guide.
+# Parses stdin once, exports the HOOK_* variables, and runs each executable
+# checks/*.sh with the raw payload on stdin. Check contract:
+#   exit 0            pass
+#   exit 2 + stderr   finding (stderr is the message for the agent)
+# PreToolUse stops at the first finding (a deny needs only one reason).
+# Other events run all checks in parallel and report every finding together.
+# Adding a check is dropping a file in checks/: no config change, no new trust review.
 
-set -euo pipefail
+# shellcheck source=/dev/null
+. "$(dirname "$0")/lib/hook-io.sh"
+hook_read
+export HOOK_EVENT HOOK_TOOL HOOK_CWD HOOK_CMD HOOK_FILE HOOK_PROMPT HOOK_SESSION HOOK_STOP_ACTIVE HOOK_RUNTIME
+HOOK_PATHS=$(hook_paths)
+export HOOK_PATHS
 
-CHECKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/checks"
+checks_dir="$(cd "$(dirname "$0")" && pwd)/checks"
 
-# --- Parse input once ---
-
-JSON_INPUT=$(cat)
-file_path=$(echo "${JSON_INPUT}" | jq -r '.tool_input.file_path // empty')
-
-# Skip if no file path or file doesn't exist
-if [ -z "${file_path}" ] || [ ! -f "${file_path}" ]; then
-    exit 0
+if [ "$HOOK_EVENT" = PreToolUse ]; then
+    for check in "$checks_dir"/*.sh; do
+        [ -x "$check" ] || continue
+        msg=$(printf '%s' "$HOOK_INPUT" | "$check" 2>&1 >/dev/null)
+        [ $? -eq 2 ] && hook_deny "${check##*/}: $msg"
+    done
+    hook_pass
 fi
 
-# Resolve to absolute path
-if [[ "${file_path}" != /* ]]; then
-    file_path="${CLAUDE_PROJECT_DIR}/${file_path}"
-fi
+out=$(mktemp -d "${TMPDIR:-/tmp}/hook-dispatch.XXXXXX")
+trap 'rm -r "$out"' EXIT
+for check in "$checks_dir"/*.sh; do
+    [ -x "$check" ] || continue
+    name=${check##*/}
+    ( printf '%s' "$HOOK_INPUT" | "$check" 2>"$out/$name.err" >/dev/null; echo $? > "$out/$name.code" ) &
+done
+wait
 
-# --- Filter: only code files ---
-# Customize this list for your project's languages
-
-case "${file_path}" in
-    *.ts|*.tsx|*.js|*.jsx) ;;
-    # Add more: *.py|*.rb|*.go|*.rs)
-    *) exit 0 ;;
-esac
-
-# --- Classify once ---
-
-is_test="false"
-case "${file_path}" in
-    *__tests__*|*.test.*|*.spec.*|*/mocks/*|*/test/*|*mock*) is_test="true" ;;
-esac
-
-is_config="false"
-case "${file_path}" in
-    *.config.*) is_config="true" ;;
-esac
-
-rel_path="${file_path#${CLAUDE_PROJECT_DIR}/}"
-
-# --- Run all checks ---
-
-output=""
-had_warning=false
-
-for check in "${CHECKS_DIR}"/*.sh; do
-    [ -x "${check}" ] || continue
-
-    result=""
-    exit_code=0
-    result=$("${check}" "${file_path}" "${rel_path}" "${is_test}" "${is_config}" 2>&1) || exit_code=$?
-
-    if [ -n "${result}" ]; then
-        if [ -n "${output}" ]; then
-            output="${output}
----
+findings=""
+for code_file in "$out"/*.code; do
+    [ -e "$code_file" ] || continue
+    [ "$(cat "$code_file")" = 2 ] || continue
+    name=$(basename "$code_file" .code)
+    findings="$findings--- $name
+$(cat "$out/$name.err")
 "
-        fi
-        output="${output}${result}"
-        if [ "${exit_code}" = "2" ]; then
-            had_warning=true
-        fi
-    fi
 done
 
-# --- Output ---
-
-if [ -n "${output}" ]; then
-    echo "${output}"
-    if ${had_warning}; then
-        exit 2
-    fi
-fi
-
-exit 0
+# Findings go to stderr with exit 2: that is the channel the agent reads.
+[ -z "$findings" ] || hook_block "$findings"
+hook_pass

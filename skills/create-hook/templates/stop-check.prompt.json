@@ -1,0 +1,16 @@
+{
+  "_template": "Prompt hook: one model call judges whether the turn is done. Claude Code only (Codex parses prompt hooks and skips them). Merge the hooks block into settings.json.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "You judge whether an AI coding agent should end its turn. Hook input: $ARGUMENTS\n\nThe agent's final message is in last_assistant_message. Answer ok: true when the user's request is fully handled, or when the agent is waiting on a question only the user can answer. Answer ok: false with a one-sentence next step when requested work is visibly unfinished. If stop_hook_active is true and the remaining work cannot be done in this session, answer ok: false with impossible: true.\n\nRespond with JSON only: {\"ok\": true} or {\"ok\": false, \"reason\": \"...\"}.",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

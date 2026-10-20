@@ -1,0 +1,17 @@
+{
+  "session_id": "sess-claude",
+  "transcript_path": "/tmp/project/.t.jsonl",
+  "cwd": "/tmp/project",
+  "permission_mode": "default",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "/tmp/project/src/app.ts",
+    "content": "export {}\n"
+  },
+  "tool_response": {
+    "type": "create",
+    "filePath": "/tmp/project/src/app.ts"
+  },
+  "tool_use_id": "toolu_03"
+}

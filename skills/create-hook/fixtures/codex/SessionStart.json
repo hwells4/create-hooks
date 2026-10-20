@@ -1,0 +1,9 @@
+{
+  "session_id": "sess-codex",
+  "transcript_path": null,
+  "cwd": "/tmp/project",
+  "model": "gpt-6-sol",
+  "permission_mode": "default",
+  "hook_event_name": "SessionStart",
+  "source": "startup"
+}

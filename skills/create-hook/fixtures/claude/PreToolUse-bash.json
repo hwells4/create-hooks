@@ -1,0 +1,13 @@
+{
+  "cwd": "/tmp/project",
+  "hook_event_name": "PreToolUse",
+  "permission_mode": "default",
+  "session_id": "s1",
+  "tool_input": {
+    "command": "git status && echo \"done\"",
+    "description": "Check status"
+  },
+  "tool_name": "Bash",
+  "tool_use_id": "toolu_01",
+  "transcript_path": "/tmp/t.jsonl"
+}

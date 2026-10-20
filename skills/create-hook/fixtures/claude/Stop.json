@@ -1,0 +1,11 @@
+{
+  "session_id": "sess-claude",
+  "transcript_path": "/tmp/project/.t.jsonl",
+  "cwd": "/tmp/project",
+  "permission_mode": "default",
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "Done. I updated src/app.ts.",
+  "background_tasks": [],
+  "session_crons": []
+}

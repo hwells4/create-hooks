@@ -1,182 +1,118 @@
 ---
 name: create-hook
-description: Quickly scaffold Claude Code hooks with templates, validation, and conflict analysis. Analyzes existing hooks to prevent conflicts and takes care of boilerplate so you can focus on logic.
+description: Hooks for Claude Code and Codex. Use to find which hooks are worth building from past sessions, create a hook (guard a tool call, inject context, gate Stop, auto-approve, notify), debug one that misfires or slows the agent, audit the hooks a project runs, consolidate several into a dispatcher, or port hooks between Claude Code and Codex.
 ---
 
-<objective>
-Hook Manager helps you build Claude Code hooks properly. It handles the tedious parts—boilerplate, JSON schemas, settings configuration—so you can focus on what your hook actually does. Before creating anything, it checks what hooks you already have running to make sure nothing steps on each other.
+# Create Hook
 
-**Core principle: prefer dispatchers over standalone hooks.** When multiple hooks exist on the same event, they should be consolidated into a single dispatcher with a `checks/` directory. This eliminates redundant JSON parsing, prevents conflicts, and makes adding new checks trivial (drop a file). The create-hook flow automatically detects when a dispatcher should be used and routes accordingly.
-</objective>
+A hook is code the runtime runs at a lifecycle event. It reads one JSON payload on stdin and answers with an exit code or one JSON object. Claude Code and Codex share that contract almost field for field, so one script serves both; `references/runtimes.md` holds the differences.
 
-<intake>
-**If user provides arguments, route directly:**
-- `/create-hook new PreToolUse validate-bash` → Create workflow
-- `/create-hook debug my-hook.py` → Debug workflow
-- `/create-hook template auto-approve` → Show template
-- `/create-hook analyze` → Run inventory agent
-- `/create-hook dispatcher PostToolUse` → Create dispatcher workflow
-- `/create-hook validate` → Run hook validator
-- `/create-hook validate my-hook.py` → Validate specific hook
+Four words carry this skill:
 
-**If bare `/create-hook` with no arguments, ask:**
+- **Approved spec**: no hook file is written until the user has replied yes to the step 2 block. Showing the block ends your turn, in every runtime, however clear the request looks; a hook the user didn't confirm guards the wrong thing.
+- **Hot path**: PreToolUse, PostToolUse, PermissionRequest, and UserPromptSubmit hooks run on every matching call while the agent waits. Hot-path hooks are tight: one jq parse, built-in matching, no interpreter startup, under 50ms.
+- **Guardrail**: a hook catches the common case, and a crashed or timed-out hook lets the action through. Hard policy lives in the runtime's own controls (Claude permission rules, Codex sandbox and approval policy).
+- **Red/green**: a hook is done when a fixture that should trip it goes red (deny or block) and a clean fixture goes green, in each target runtime's payload shape.
 
-What do you need?
+## Route
 
-1. **Create a new hook** - I'll check your existing hooks first. If you already have a dispatcher or multiple hooks on the same event, I'll add a check to the dispatcher instead of creating a standalone hook.
-2. **Edit an existing hook** - Modify a hook or dispatcher check in .claude/hooks/
-3. **Consolidate hooks** - Migrate multiple standalone hooks into a single dispatcher
-4. **Debug a hook** - Something's not working? Let's figure out why
-5. **View hook logs** - See which hooks are firing (`scripts/hook-log.py`)
-6. **Validate hooks** - Check that hooks are correctly configured and ready for use
-7. **Analyze hooks** - See what hooks you have running and find gaps
-8. **Something else** - Templates, settings, MCP tools, security, env vars
+| Request | Go to |
+|---|---|
+| Which hooks should I have; ideas for hooks | `workflows/brainstorm.md` |
+| Create or change a hook | Steps below |
+| A hook doesn't fire, fires wrong, or is slow | `workflows/debug.md` |
+| What hooks run here, and are they sound | `workflows/audit.md` |
+| Several hooks on one event, or a `checks/` dispatcher exists | `workflows/consolidate.md` |
+| Make existing hooks work in the other runtime | `workflows/port.md` |
 
-**When creating a new hook, ALWAYS ask about installation level:**
+## Steps
 
-Where should this hook be installed?
+1. **Inventory.** Run `python3 scripts/validate-hooks.py --inventory --project <repo>`.
+   Done when you can name every hook already on the target event in each target runtime. If that event has a dispatcher (a `checks/` directory), the new logic becomes a check: switch to `workflows/consolidate.md`.
 
-1. **Project level** (`.claude/settings.json`) - Runs only in THIS project, checked into git
-2. **User level** (`~/.claude/settings.json`) - Runs in ALL your projects
-3. **Local only** (`.claude/settings.local.json`) - Project-level but gitignored (for personal/sensitive hooks)
-</intake>
+2. **Spec.** Ask the user to approve the spec: reply with the block below ending in the question `Build this? (yes, or what to change)`, and wait for the answer before step 3. The block's shape:
+   ```
+   On PreToolUse [Bash, if Bash(git push *)] in both at project scope,
+   a command hook checks the push target and denies pushes to main.
 
-<routing>
-**Load references based on user intent:**
+     red:   git push origin main            -> deny
+     red:   git push -f origin HEAD:main    -> deny
+     green: git push origin feature/x       -> pass
+     gap:   Codex ignores `if`; the script filters for itself.
+   ```
+   The first line follows `On <Event> [matcher, if] in <claude|codex|both> at <user|project|local> scope, a <handler> checks <X> and answers <Y>.` Then two to four cases, each a concrete input and the decision it gets, with at least one red and one green, and the near miss the user is most likely to worry about. Then one `gap:` line per runtime limit that applies.
+   When the event isn't obvious, choose it from `references/events.md`; when Codex is a target, read `references/runtimes.md` first. Scope: project is committed and shared, local is Claude's personal `.claude/settings.local.json`, user covers every project.
+   Done when the user has approved the block. Its cases become step 5's first test cases.
 
-| Intent | References to Load | Workflow |
-|--------|-------------------|----------|
-| Create new hook | hook-events.md, json-output.md, security.md, sub-agents.md, dispatcher-pattern.md | Spawn inventory agent → **dispatcher decision** → create (check or standalone) → tester agent |
-| Create prompt-based hook | prompt-based-hooks.md, hook-events.md | Determine event → configure prompt → test |
-| Create component-scoped hook | component-scoped-hooks.md, hook-events.md | Define in frontmatter → test |
-| Edit existing hook | hook-events.md, json-output.md, debugging.md | Read existing hook → modify → test |
-| Debug hook | debugging.md, hook-events.md | Diagnose → fix → test |
-| **Validate hooks** | debugging.md | Run `scripts/validate-hook.py --project` |
-| **View hook logs** | debugging.md | Run `scripts/hook-log.py` or `tail -f .claude/hooks/.debug.log` |
-| Analyze hooks | sub-agents.md | Spawn inventory agent |
-| **Consolidate hooks (dispatcher)** | dispatcher-pattern.md, hook-events.md | workflows/create-dispatcher.md |
-| MCP tools | mcp-tools.md, hook-events.md | Show patterns |
-| SessionStart/env vars | session-env-vars.md, hook-events.md | Show patterns |
-| Security review | security.md | Show checklist |
-| Templates | (load template file directly) | Show template |
-| Add to settings | workflows/add-to-settings.md | Configure |
-</routing>
+3. **Mechanism.** Take the lowest rung that does the job (`references/handlers.md`):
+   1. No hook: static guidance goes in CLAUDE.md / AGENTS.md; allowing or denying a command by its prefix is a permission rule. A rule that depends on argument order, repo state (the current branch), absolute paths like `/usr/bin/git`, or Codex needs a hook.
+   2. `command` hook, narrowed by matcher and, in Claude, `if`.
+   3. `async` command, for anything that only observes, records, or reports.
+   4. `mcp_tool` or `http`, when the logic already lives behind a server.
+   5. `prompt` (one model call) or `agent` (multi-turn verifier), for judgment a script cannot make. Claude only, seconds per run.
 
-<essential_principles>
-1. **Analyze first** - Before creating, understand existing hooks to prevent conflicts
-2. **Dispatcher by default** - After inventory, check if a dispatcher exists or should be created:
-   - **Dispatcher exists for this event** → Add a check script to `checks/`, not a standalone hook
-   - **2+ hooks already exist on this event** → Recommend consolidating into a dispatcher first
-   - **0-1 hooks exist** → Create standalone hook (but keep it dispatcher-ready)
-   See `references/dispatcher-pattern.md` for the full pattern.
-3. **Ask installation level** - ALWAYS ask user: project, user, or local level
-   - **Project** (`.claude/settings.json`) - This project only, version controlled
-   - **User** (`~/.claude/settings.json`) - ALL projects for this user
-   - **Local** (`.claude/settings.local.json`) - This project only, gitignored
-4. **Debug wrapper by default** - Always include `debug-wrap.sh` and wrap commands with it (user can opt out)
-5. **Input via stdin** - Hooks receive JSON with session_id, tool_name, tool_input, etc.
-6. **Output via exit codes** - 0=success, 2=blocking error (stderr shown to Claude)
-7. **Parallel execution** - All matching hooks run simultaneously (60s timeout default)
-8. **Validate after creation** - Run `scripts/validate-hook.py` to confirm proper installation
-</essential_principles>
+   Done when you can say why each lower rung falls short.
 
-<quick_reference>
-**Hook Types:**
-| Type | When to Use | Supported Events |
-|------|-------------|------------------|
-| `command` | Deterministic checks (regex, file ops, external APIs) | All events |
-| `prompt` | Judgment calls (task completeness, quality evaluation) | Stop, SubagentStop, UserPromptSubmit, PreToolUse, PermissionRequest |
+4. **Write.** Copy the closest template and `templates/lib/hook-io.sh` into the hooks directory: `.claude/hooks/` for Claude only, `.codex/hooks/` for Codex only, `.agents/hooks/` when both configs point at one script. Follow the rules below.
+   Done when `bash -n` passes and every decision goes through a `hook_*` emitter.
 
-**Hook Events:**
-| Event | When | Matcher? | Can Block? |
-|-------|------|----------|------------|
-| PreToolUse | Before tool runs | Yes | Yes |
-| PostToolUse | After tool succeeds | Yes | Feedback only |
-| PermissionRequest | Permission dialog | Yes | Yes |
-| UserPromptSubmit | User sends prompt | No | Yes |
-| Stop | Claude finishes | No | Yes (continue) |
-| SubagentStop | Subagent finishes | No | Yes (continue) |
-| SessionStart | Session begins | Yes | Context + env vars |
-| SessionEnd | Session ends | No | Cleanup only |
-| PreCompact | Before compaction | Yes | No |
-| Notification | System notification | Yes | No |
+5. **Test.** Derive cases from `fixtures/<runtime>/`, pointing `cwd` at the real repo so git and path lookups work:
+   `jq --arg cwd "$PWD" '.cwd = $cwd | .tool_input.command = "git push origin main"' fixtures/claude/PreToolUse-bash.json > /tmp/push-main.json`
+   Then run `python3 scripts/test-hook.py "<command>" /tmp/push-main.json:deny ...`, once per runtime with that runtime's config command string. The runner sets `CLAUDE_PROJECT_DIR` to the current directory for Claude cases and unsets it for Codex cases (those with `turn_id`).
+   Done when every decision the hook can make has a case that lands as expected, in each target runtime's fixtures, and hot-path cases report a median under 50ms.
 
-**Common Matchers:**
-- `Write|Edit|MultiEdit` - File modifications
-- `Bash` - Shell commands
-- `Task` - Subagent creation
-- `mcp__<server>__<tool>` - MCP tools (e.g., `mcp__github__.*`)
-- `*` or empty - All tools
 
-**Exit Codes:**
-- `exit 0` - Success (stdout in verbose mode, or context for SessionStart/UserPromptSubmit)
-- `exit 2` - Block action (stderr shown to Claude)
-- `exit 1` - Non-blocking error (logged only)
-</quick_reference>
+6. **Register.** Add the handler to each runtime's config at the chosen scope; `references/config.md` has the shapes and path idioms.
+   Done when the file parses and the command path resolves when the session starts in a subdirectory.
 
-<references_index>
-**Core (load for most tasks):**
-| Reference | Purpose |
-|-----------|---------|
-| references/hook-events.md | Input/output schemas per event |
-| references/json-output.md | JSON response format details |
-| references/dispatcher-pattern.md | Dispatcher architecture — when and how to consolidate hooks |
+7. **Validate.** Run `python3 scripts/validate-hooks.py --project <repo>`.
+   Done when it reports no ERROR and each WARN is fixed or explained to the user.
 
-**Task-specific:**
-| Reference | When to Load |
-|-----------|--------------|
-| references/prompt-based-hooks.md | Creating LLM-evaluated hooks (type: prompt) |
-| references/component-scoped-hooks.md | Defining hooks in SKILL.md/command frontmatter |
-| references/security.md | Creating new hooks, security review |
-| references/debugging.md | Debugging, testing, healing hooks |
-| references/mcp-tools.md | Hooking MCP server tools |
-| references/session-env-vars.md | SessionStart hooks with env vars |
-| references/sub-agents.md | Creating hooks (analysis phase) |
-</references_index>
+8. **Live.** Build a throwaway copy with `python3 scripts/live-test.py scratch --from <repo>` (its origin is a local bare repo, so a red case that slips through lands there), and run one red and one green spec case per target runtime:
+   `python3 scripts/live-test.py run --dir <scratch> --runtime claude --hook <script.sh> --expect deny --command "git push origin main"`
+   It runs `claude -p` or `codex exec` and reads the line each `hook-io.sh` hook appends to `HOOK_TRACE`. Claude runs with permissions bypassed, so a red case the hook misses really executes: pick red cases whose damage stays inside the scratch repo (a push, deleting a tracked file), and leave anything that reaches outside it (`rm -rf ~`, a real API call) to fixtures. Add `--herdr` (herdr installed) for decisions that only show in an interactive session: `ask`, PermissionRequest, Notification. Use `--prompt` instead of `--command` for edits and Stop gates.
+   Done when each live case prints PASS, or the user has chosen to skip live tests (each run is a model call of several seconds).
 
-<templates_index>
-| Template | Use Case |
-|----------|----------|
-| templates/debug-wrap.sh | **Debug wrapper** - logs hook invocations (~0.5ms overhead) |
-| templates/bash-validator.sh | Block dangerous shell commands |
-| templates/python-validator.py | Complex validation with JSON |
-| templates/auto-approve.py | Auto-approve safe operations |
-| templates/context-injection.py | SessionStart/UserPromptSubmit context |
-| templates/stop-gate.py | Ensure work completion before stop (command-based) |
-| templates/intelligent-stop-prompt.json | LLM-evaluated task completion (prompt-based) |
-| templates/permission-handler.py | Handle permission dialogs programmatically |
-| templates/notification-forwarder.sh | Forward notifications externally |
-| templates/dispatcher.sh | **Shell dispatcher** (recommended) - routes to checks/ directory |
-| templates/dispatcher.py | **Python dispatcher** - routes to handler functions in one file |
-</templates_index>
+9. **Report.** Give the spec line, files written, fixture and live test results with timings, the `references/runtimes.md` rows that change this hook's behavior in each runtime, what it can't see (edits made through Bash bypass Write/Edit hooks), and the activation step: Claude picks up settings edits on its own (confirm in `/hooks`); Codex runs a new or edited hook only after the user trusts it in `/hooks`.
 
-<subagent_usage>
-**When creating hooks, spawn agents in order:**
+## Rules every hook script follows
 
-1. **hook_inventory_agent** - Scans existing hooks, identifies gaps
-2. **Dispatcher decision** (orchestrator, not an agent):
-   - If a `checks/` directory exists for this event → route to "add check" flow
-   - If 2+ hooks exist on the target event → recommend dispatcher, load `workflows/create-dispatcher.md`
-   - Otherwise → proceed with standalone hook creation
-3. **interaction_analyzer_agent** - Identifies conflicts with proposed hook (or checks in dispatcher)
-4. **hook_tester_agent** - Tests hook/check before deployment
+- Read stdin once with `hook_read`; take fields from the `HOOK_*` variables or one more jq call on `$HOOK_INPUT`.
+- One answer channel: exit 2 with the message on stderr, or exit 0 with exactly one JSON object on stdout. Keep stdout otherwise silent, since any extra line turns the JSON into plain text.
+- Exit 2 is the only blocking exit code. Exit 1 is a hook error, and the action goes ahead.
+- Messages are written for the agent: what was refused and the next step to take.
+- Stop and SubagentStop hooks pass when `HOOK_STOP_ACTIVE` is true.
+- Paths are absolute and quoted, built from `hook_project_dir` or the payload's `cwd`.
+- Scripts run on macOS `/bin/bash` 3.2: indexed arrays, `[[ =~ ]]`, and `case` are available; associative arrays and `${x,,}` are not.
+- Work that outlives the decision runs detached with stdout and stderr redirected, after the answer is printed.
 
-See `references/sub-agents.md` for full prompt templates.
-See `references/dispatcher-pattern.md` for dispatcher architecture.
-</subagent_usage>
+## Templates
 
-<success_criteria>
-- [ ] Existing hooks analyzed (no surprise conflicts)
-- [ ] **Dispatcher check**: if 2+ hooks exist on target event, dispatcher recommended or used
-- [ ] **If dispatcher exists**: new check added to `checks/` directory (no settings change needed)
-- [ ] **If standalone hook**: script created with proper shebang and permissions
-- [ ] **Debug wrapper installed** (`debug-wrap.sh` copied to `.claude/hooks/`) - unless user explicitly opts out
-- [ ] **Settings command uses debug wrapper** - unless user explicitly opts out (standalone hooks only)
-- [ ] User asked about installation level (project/user/local)
-- [ ] Settings.json updated at correct level per user choice (standalone hooks only — dispatchers need no settings change for new checks)
-- [ ] Input parsing handles JSON from stdin (standalone) or positional args (dispatcher check)
-- [ ] Output uses correct exit codes/JSON format
-- [ ] Script tested with multiple inputs before deployment
-- [ ] **Validator run** to confirm hook is properly installed (`scripts/validate-hook.py`)
-- [ ] Security: inputs validated, paths sanitized, sensitive files protected
-</success_criteria>
+| Template | Event | Runtimes |
+|---|---|---|
+| `guard-bash.sh` | PreToolUse `Bash` | both |
+| `guard-files.sh` | PreToolUse `Write\|Edit` (Codex `apply_patch`) | both |
+| `post-edit-check.sh` | PostToolUse `Write\|Edit` | both |
+| `inject-context.sh` | SessionStart, UserPromptSubmit | both |
+| `track-activity.sh` + `stop-gate.sh` | PostToolUse (async) + Stop | both |
+| `approve-safe.sh` | PermissionRequest `Bash` | both |
+| `notify.sh` | Notification (Claude), Stop (Codex) | both |
+| `failure-hint.sh` | PostToolUseFailure `Bash` | Claude |
+| `dispatcher.sh` | any; runs `checks/*.sh` | both |
+| `stop-check.prompt.json` | Stop, prompt handler | Claude |
+| `stop-verify.agent.json` | Stop, agent handler | Claude |
+| `debug-wrap.sh` | wraps any command; logs exit and duration | both |
+
+## References
+
+Load each when its condition holds:
+
+- `references/events.md`: choosing an event, what it can control, matcher values.
+- `references/handlers.md`: handler types and fields (`if`, `async`, `timeout`, `onFailure`, exec vs shell form); prompt and agent response schema.
+- `references/io.md`: input fields, the exit-code matrix, JSON output for each kind of decision.
+- `references/runtimes.md`: any hook that must run in Codex, or in both runtimes.
+- `references/config.md`: registering a hook in settings files, `hooks.json` / `config.toml`, plugins, or skill and agent frontmatter.
+- `references/performance.md`: hot-path hooks, or a hook reported as slow.
+- `references/security.md`: hooks that read paths, run commands, or approve actions.
+
+Full schemas: https://code.claude.com/docs/en/hooks and https://learn.chatgpt.com/docs/hooks

@@ -1,250 +1,108 @@
-# Hook Manager
+# Create Hooks
 
-Build Claude Code hooks without the guesswork.
+A skill for building lifecycle hooks that run in both Claude Code and Codex.
 
-Hooks let you run arbitrary code at specific points in Claude Code's lifecycle — before a tool runs, after a file is written, when a session starts, when Claude stops. They're the extension point for enforcing rules, injecting context, automating approvals, and wiring Claude into your workflow.
+Hooks are scripts the agent runtime runs at fixed points: before a tool call, after a file edit, when a session starts, when the agent tries to stop. Each one reads a JSON payload on stdin and answers with an exit code or one JSON object. That's how you enforce rules, inject live context, auto-approve safe commands, and keep an agent working until the job is done.
 
-This plugin handles the tedious parts: boilerplate, JSON schemas, settings configuration, conflict detection, validation, and debugging. You describe what you want, it builds a working hook.
+Codex adopted Claude Code's hook contract almost field for field, which makes one script for both runtimes realistic. The catch is the gaps:
 
-## Installation
+- Codex reports file edits as `apply_patch` with a patch string.
+- Codex has no `ask` decision.
+- Codex silently ignores `if` and `args`.
+
+This skill handles those gaps for you.
+
+## Install
+
+Claude Code:
 
 ```
 /plugin marketplace add https://github.com/hwells4/hwells4-marketplace.git
 /plugin install create-hooks@hwells4-plugins
 ```
 
-## What Are Hooks?
-
-Hooks are shell commands or scripts that Claude Code executes at defined points in its lifecycle. They receive JSON on stdin with context about what's happening, and they respond with exit codes and optional output.
+Codex:
 
 ```
-You type a prompt
-  → UserPromptSubmit hooks fire (can modify or block the prompt)
-
-Claude decides to run a tool
-  → PreToolUse hooks fire (can block the tool or inject context)
-
-The tool executes
-  → PostToolUse hooks fire (can give Claude feedback on what it just did)
-
-Claude finishes
-  → Stop hooks fire (can tell Claude to keep going)
+codex plugin marketplace add hwells4/hwells4-marketplace
+codex plugin add create-hooks@hwells4-plugins
 ```
 
-Hooks are configured in your settings file and can be scoped to specific tools using matchers:
+Then ask for what you want: "block force-pushes to main", "remind the agent to run tests before it stops", "make my Claude hooks work in Codex". The skill also answers to `/create-hook`.
 
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/validate-code.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+## What it does
 
-That's it. Every time Claude writes or edits a file, your script runs.
+| Ask | What happens |
+|---|---|
+| Create a hook | Inventories existing hooks, writes a one-line spec, picks the cheapest mechanism, writes the script from a template, tests it against both runtimes' payloads, registers it, validates |
+| Debug a hook | Walks the chain from registered to matched, started, answered, and understood, stopping at the first broken link |
+| Audit hooks | Gives a per-hook verdict: purpose, latency, overlaps, and runtime soundness |
+| Consolidate | Merges several hooks on one event into a dispatcher with a `checks/` directory |
+| Port | Moves hooks between Claude Code and Codex, labeling each one portable, adaptable, or no equivalent |
 
-## Why Use This Plugin?
-
-Writing a hook from scratch means getting the JSON schema right, setting the correct exit codes, configuring settings with the right matcher syntax, making the script executable, and hoping it doesn't conflict with your other hooks. Most people get at least one of those wrong.
-
-This plugin:
-
-- **Analyzes your existing hooks first** so new ones don't conflict
-- **Generates correct boilerplate** for any event type, in any language
-- **Validates everything** — syntax, permissions, settings config, exit codes
-- **Adds telemetry by default** so you can see exactly when hooks fire
-- **Scales with you** — from a single hook to a full dispatcher routing to dozens of checks
-
-## Usage
-
-Describe what you want in plain language:
+## What's inside
 
 ```
-"Block any bash command that runs rm -rf"
-"Auto-approve all file reads in my project"
-"Inject my coding standards at session start"
-"Validate that every React component has a testID"
-"Log all tool usage to a file"
+skills/create-hook/
+  SKILL.md              routing, the create steps, rules every hook follows
+  references/           events, handlers, I/O, runtime differences, config, performance, security
+  workflows/            brainstorm, debug, audit, consolidate, port
+  templates/            bash + jq hook scripts and prompt/agent handler configs
+  templates/lib/hook-io.sh   parses stdin once and emits answers both runtimes accept
+  fixtures/claude|codex/     real-shaped payloads for each event
+  scripts/test-hook.py       runs a hook against fixtures; reports outcome and median latency
+  scripts/validate-hooks.py  inventories and lints every hook a project runs, both runtimes
+  scripts/hook-log.py        reads the debug-wrap.sh log (exit codes, durations)
+  scripts/mine-candidates.py finds hook candidates in past Claude and Codex sessions
+  scripts/live-test.py       proves a hook fires in a real session, in a throwaway repo copy
 ```
 
-Or invoke directly:
+## Optional tools
+
+The skill checks for these and builds on them when they're installed. Everything works without them.
+
+- **[cass](https://github.com/Dicklesworthstone/coding_agent_session_search)** (coding agent session search) indexes sessions from Claude Code, Codex, and other agents, and keeps them after Claude Code deletes its transcripts (30 days by default). The brainstorm workflow uses it to count how often a candidate recurs and to read real instances of it.
+- **[herdr](https://herdr.dev)** runs agents in managed terminal panes. `live-test.py --herdr` uses it to test decisions that only show in an interactive session: `ask` dialogs, permission prompts, notifications.
+
+## Finding and proving hooks
+
+`mine-candidates.py` groups the moments a human or a gate stopped the agent (rejected tool calls, interrupts, corrections like "no, don't...", auto mode denials, existing hook blocks, saved approvals) by the action involved, so the hooks worth building are the ones your history already asks for.
+
+`live-test.py` copies the repo into a scratch git repo whose origin is a local bare repo, then runs one headless session (`claude -p` or `codex exec`) per case. Hooks built on `lib/hook-io.sh` append a trace line when `HOOK_TRACE` is set, so the result is the hook's actual decision in a real session, in either runtime.
+
+## Templates
+
+| Template | Does | Runtimes |
+|---|---|---|
+| `guard-bash.sh` | denies destructive commands, sends risky ones to a human | both |
+| `guard-files.sh` | protects `.env`, keys, `.git/`, lockfiles (reads `apply_patch` paths too) | both |
+| `post-edit-check.sh` | runs a fast per-file check after edits and hands failures back to the agent | both |
+| `inject-context.sh` | adds branch and dirty files at session start | both |
+| `track-activity.sh` + `stop-gate.sh` | keeps the agent working if it edited code without running tests | both |
+| `approve-safe.sh` | approves plain read-only commands at the permission prompt | both |
+| `notify.sh` | desktop notification | both |
+| `failure-hint.sh` | turns known tool failures into a next step | Claude |
+| `dispatcher.sh` | one hook running every script in `checks/` | both |
+| `stop-check.prompt.json`, `stop-verify.agent.json` | model-judged stop conditions | Claude |
+
+## Speed
+
+A synchronous hook adds its runtime to every call it matches, so the templates are built for the hot path:
+
+- one `jq` parse
+- built-in regex matching
+- no interpreter startup
+
+A typical template runs in about 10ms. The same logic in Python takes about 19ms, and a bare Node process takes about 26ms. Claude's `if` field and `async` hooks avoid most of the cost; `references/performance.md` has the details.
+
+## Tests
 
 ```
-/create-hooks:create-hook
+tests/templates.sh   # every template against both runtimes' fixtures, under macOS /bin/bash 3.2
+tests/validator.sh   # validate-hooks.py against a project seeded with known-bad and known-good configs
+tests/miner.sh       # mine-candidates.py against synthetic Claude and Codex transcripts
+tests/live.sh        # live-test.py's scratch builder; LIVE=1 also runs real sessions in each runtime
 ```
-
-## Hook Events
-
-| Event | When It Fires | What It Can Do |
-|-------|---------------|----------------|
-| **PreToolUse** | Before a tool runs | Block it, modify it, or inject context |
-| **PostToolUse** | After a tool succeeds | Give Claude feedback on what it just did |
-| **UserPromptSubmit** | You send a prompt | Rewrite it, block it, or add context |
-| **PermissionRequest** | Permission dialog appears | Auto-approve or auto-deny |
-| **Stop** | Claude finishes a task | Tell it to keep going |
-| **SubagentStop** | A subagent finishes | Tell it to keep going |
-| **SessionStart** | Session begins | Set env vars, inject context |
-| **SessionEnd** | Session ends | Clean up resources |
-| **PreCompact** | Before context compaction | Add notes to preserve |
-| **Notification** | System notification | Forward to Slack, email, etc. |
-
-## Examples
-
-### Block dangerous commands
-
-A `PreToolUse` hook that prevents Claude from running destructive shell commands:
-
-```bash
-#!/bin/bash
-# Reads JSON from stdin, checks the command
-JSON=$(cat)
-command=$(echo "$JSON" | jq -r '.tool_input.command // empty')
-
-if echo "$command" | grep -qE 'rm\s+-rf|DROP\s+TABLE|:(){ :|:& };:'; then
-    echo "Blocked dangerous command: $command" >&2
-    exit 2
-fi
-exit 0
-```
-
-### Auto-approve safe operations
-
-A `PreToolUse` hook that auto-approves reads and searches:
-
-```python
-#!/usr/bin/env python3
-import json, sys
-
-data = json.load(sys.stdin)
-safe_tools = ["Read", "Glob", "Grep", "WebSearch"]
-
-if data.get("tool_name") in safe_tools:
-    json.dump({"decision": "approve"}, sys.stdout)
-    sys.exit(0)
-
-sys.exit(0)
-```
-
-### Inject context at session start
-
-A `SessionStart` hook that loads project-specific instructions:
-
-```bash
-#!/bin/bash
-if [ -f ".claude/project-context.md" ]; then
-    context=$(cat .claude/project-context.md)
-    echo "$context"
-fi
-exit 0
-```
-
-### Enforce coding standards on every file write
-
-A `PostToolUse` hook that checks files after Claude writes them:
-
-```bash
-#!/bin/bash
-JSON=$(cat)
-file_path=$(echo "$JSON" | jq -r '.tool_input.file_path // empty')
-
-# Only check code files
-case "$file_path" in
-    *.ts|*.tsx|*.js|*.jsx) ;;
-    *) exit 0 ;;
-esac
-
-# Check for console.log
-violations=$(grep -n 'console\.log' "$file_path" 2>/dev/null || true)
-if [ -n "$violations" ]; then
-    echo "Found console.log statements — remove before committing:"
-    echo "$violations"
-    exit 2
-fi
-exit 0
-```
-
-## Structuring Hooks for Scale
-
-A single hook is simple. But as your project grows, you'll want hooks that are fast, easy to add, and don't step on each other.
-
-### Keep hooks focused
-
-One hook, one job. A hook that validates bash commands shouldn't also check file permissions. Smaller hooks are easier to test, debug, and reuse.
-
-### Use matchers to limit scope
-
-Don't run a file validation hook on every tool call. Use matchers to target specific tools:
-
-```json
-{
-  "matcher": "Write|Edit|MultiEdit",
-  "hooks": [{ "type": "command", "command": ".claude/hooks/validate-code.sh" }]
-}
-```
-
-### Bail early
-
-Hooks run on every matching event. The fastest hook is one that exits immediately when it doesn't apply:
-
-```bash
-# Skip non-code files in the first 5 lines
-case "$file_path" in
-    *.ts|*.tsx|*.js|*.jsx) ;;
-    *) exit 0 ;;
-esac
-```
-
-### Consolidate when it gets crowded
-
-When you have several hooks on the same event all doing similar work — parsing the same JSON, resolving the same file path — consider a dispatcher: one entry point that does the shared work once and routes to individual check scripts. The plugin includes templates for this and will recommend it automatically when it detects the opportunity.
-
-### Use the debug wrapper
-
-Every hook this plugin creates includes a telemetry wrapper by default. It logs when hooks fire, what they return, and how long they take — with less than 1ms overhead:
-
-```bash
-tail -f .claude/hooks/.debug.log
-```
-
-## Templates Included
-
-| Template | What It Does |
-|----------|--------------|
-| `bash-validator.sh` | Blocks dangerous shell commands |
-| `python-validator.py` | Complex validation with JSON output |
-| `auto-approve.py` | Auto-approves safe operations |
-| `context-injection.py` | Injects context at session start or per-prompt |
-| `stop-gate.py` | Ensures work completion before stopping |
-| `permission-handler.py` | Handles permission dialogs programmatically |
-| `notification-forwarder.sh` | Forwards notifications to external services |
-| `dispatcher.sh` | Routes multiple checks through one entry point |
-| `dispatcher.py` | Python equivalent for complex routing logic |
-
-## Quick Reference
-
-**Exit codes:**
-- `0` — Success (hook passes, no action taken)
-- `2` — Block the action (stderr shown to Claude as feedback)
-- `1` — Error (logged, doesn't block)
-
-**Input:** JSON on stdin with `tool_name`, `tool_input`, `tool_result`, `session_id`
-
-**Settings locations:**
-- Project: `.claude/settings.json` (version controlled)
-- User: `~/.claude/settings.json` (all projects)
-- Local: `.claude/settings.local.json` (gitignored)
-
-**Hooks run in parallel.** All matching hooks fire simultaneously with a 60-second timeout.
 
 ## License
 

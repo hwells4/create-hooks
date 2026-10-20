@@ -1,0 +1,15 @@
+{
+  "session_id": "sess-claude",
+  "transcript_path": "/tmp/project/.t.jsonl",
+  "cwd": "/tmp/project",
+  "permission_mode": "default",
+  "hook_event_name": "PostToolUseFailure",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "node index.js"
+  },
+  "tool_use_id": "toolu_05",
+  "error": "Exit code 1\nError: Cannot find module 'express'",
+  "is_interrupt": false,
+  "duration_ms": 412
+}

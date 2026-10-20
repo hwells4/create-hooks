@@ -1,0 +1,27 @@
+{
+  "name": "create-hooks",
+  "version": "2.0.0",
+  "description": "Create, debug, audit, and port lifecycle hooks that run in both Claude Code and Codex",
+  "author": {
+    "name": "Harrison Wells",
+    "url": "https://github.com/hwells4"
+  },
+  "repository": "https://github.com/hwells4/create-hooks",
+  "license": "MIT",
+  "keywords": ["codex", "claude-code", "hooks", "guardrails", "automation"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Create Hooks",
+    "shortDescription": "Lifecycle hooks that run in Codex and Claude Code",
+    "longDescription": "Builds hooks from tested bash templates on a shared helper that parses one payload and answers in a shape both runtimes accept. Includes fixture payloads for each runtime, a test runner that reports outcome and latency, and a validator that inventories and lints every hook a project runs.",
+    "developerName": "Harrison Wells",
+    "category": "Coding",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "websiteURL": "https://github.com/hwells4/create-hooks",
+    "defaultPrompt": [
+      "Add a hook that blocks dangerous shell commands",
+      "Audit the hooks this project runs",
+      "Make my Claude Code hooks work in Codex"
+    ]
+  }
+}
