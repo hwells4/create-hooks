@@ -1,180 +1,104 @@
 #!/usr/bin/env python3
 """
-hook-log.py - View hook debug logs in a friendly format
+hook-log.py - read the log that templates/debug-wrap.sh writes.
 
 Usage:
-    python3 hook-log.py              # Show recent activity
-    python3 hook-log.py --watch      # Live tail (like tail -f)
-    python3 hook-log.py --errors     # Only show non-zero exit codes
-    python3 hook-log.py --clear      # Clear the log file
-    python3 hook-log.py --path       # Just print the log file path
+    python3 hook-log.py               # last 40 runs
+    python3 hook-log.py --errors      # runs that exited non-zero and not 2
+    python3 hook-log.py --slow 50     # runs that took 50ms or more
+    python3 hook-log.py --summary     # per hook: runs, blocks, errors, median and max ms
+    python3 hook-log.py --watch       # follow new runs
+    python3 hook-log.py --clear
 
-Requires: Hooks wrapped with debug-wrap.sh
+Log line: <iso-time> <runtime> <event> exit=<code> <ms>ms <hook>
+Log path: $HOOK_DEBUG_LOG, default ~/.cache/agent-hooks/debug.log
 """
 
 import argparse
 import os
-import sys
+import statistics
 import time
+from collections import defaultdict
 from pathlib import Path
 
-
-def get_log_path():
-    """Find the debug log file."""
-    # Check current project first
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
-    log_path = Path(project_dir) / ".claude" / "hooks" / ".debug.log"
-    return log_path
+LOG = Path(os.environ.get("HOOK_DEBUG_LOG", Path.home() / ".cache/agent-hooks/debug.log"))
 
 
-def parse_line(line):
-    """Parse a log line into components."""
-    line = line.strip()
-    if not line:
+def parse(line: str):
+    parts = line.split()
+    if len(parts) < 6 or not parts[3].startswith("exit=") or not parts[4].endswith("ms"):
         return None
-
-    parts = line.split(" ", 3)
-    if len(parts) < 3:
-        return None
-
-    timestamp = parts[0]
-    exit_part = parts[1] if parts[1].startswith("exit=") else None
-    if not exit_part:
-        return None
-
-    exit_code = int(exit_part.split("=")[1])
-    hook_name = " ".join(parts[2:])
-
     return {
-        "time": timestamp,
-        "exit": exit_code,
-        "hook": hook_name,
+        "time": parts[0],
+        "runtime": parts[1],
+        "event": parts[2],
+        "code": int(parts[3][5:]),
+        "ms": int(parts[4][:-2]),
+        "hook": " ".join(parts[5:]),
     }
 
 
-def format_entry(entry):
-    """Format a log entry for display."""
-    if entry["exit"] == 0:
-        icon = "\033[32m✓\033[0m"  # green checkmark
-    elif entry["exit"] == 2:
-        icon = "\033[31m✗\033[0m"  # red X (blocked)
-    else:
-        icon = "\033[33m!\033[0m"  # yellow warning
-
-    exit_str = f"exit={entry['exit']}" if entry["exit"] != 0 else ""
-    return f"{entry['time']}  {icon}  {entry['hook']:<40} {exit_str}"
+def fmt(r) -> str:
+    status = {0: "ok", 2: "BLOCK"}.get(r["code"], f"ERR {r['code']}")
+    return f"{r['time']}  {r['runtime']:<6} {r['event']:<18} {status:<7} {r['ms']:>6}ms  {r['hook']}"
 
 
-def show_logs(log_path, errors_only=False, limit=50):
-    """Display recent log entries."""
-    if not log_path.exists():
-        print(f"No debug log found at: {log_path}")
-        print()
-        print("To enable hook debugging:")
-        print("1. Copy debug-wrap.sh to your .claude/hooks/ directory")
-        print("2. Wrap your hook commands in settings.json:")
-        print('   "command": ".claude/hooks/debug-wrap.sh python3 .claude/hooks/my-hook.py"')
+def keep(r, args) -> bool:
+    if args.errors and r["code"] in (0, 2):
+        return False
+    return not (args.slow is not None and r["ms"] < args.slow)
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--errors", action="store_true")
+    p.add_argument("--slow", type=int, metavar="MS")
+    p.add_argument("--summary", action="store_true")
+    p.add_argument("--watch", action="store_true")
+    p.add_argument("--clear", action="store_true")
+    p.add_argument("-n", type=int, default=40, help="runs to show (default 40)")
+    args = p.parse_args()
+
+    if args.clear:
+        LOG.write_text("")
+        print(f"cleared {LOG}")
+        return
+    if not LOG.exists():
+        print(f"no log at {LOG}: wrap a hook command with debug-wrap.sh first")
         return
 
-    lines = log_path.read_text().strip().split("\n")
-    entries = [parse_line(line) for line in lines if line.strip()]
-    entries = [e for e in entries if e is not None]
+    runs = [r for r in map(parse, LOG.read_text().splitlines()) if r]
 
-    if errors_only:
-        entries = [e for e in entries if e["exit"] != 0]
-
-    # Show last N entries
-    entries = entries[-limit:]
-
-    if not entries:
-        print("No hook activity recorded yet." if not errors_only else "No errors recorded.")
+    if args.summary:
+        by_hook = defaultdict(list)
+        for r in runs:
+            by_hook[(r["runtime"], r["event"], r["hook"])].append(r)
+        print(f"{'runtime':<7} {'event':<18} {'runs':>5} {'block':>5} {'err':>4} {'p50ms':>6} {'maxms':>6}  hook")
+        for (rt, ev, hook), rs in sorted(by_hook.items()):
+            ms = [r["ms"] for r in rs]
+            blocks = sum(r["code"] == 2 for r in rs)
+            errs = sum(r["code"] not in (0, 2) for r in rs)
+            print(f"{rt:<7} {ev:<18} {len(rs):>5} {blocks:>5} {errs:>4} {statistics.median(ms):>6.0f} {max(ms):>6}  {hook}")
         return
 
-    print(f"\033[1mHOOK ACTIVITY\033[0m ({log_path})")
-    print("-" * 60)
+    for r in [r for r in runs if keep(r, args)][-args.n:]:
+        print(fmt(r))
 
-    for entry in entries:
-        print(format_entry(entry))
-
-    print("-" * 60)
-
-    # Summary
-    total = len(entries)
-    blocked = sum(1 for e in entries if e["exit"] == 2)
-    errors = sum(1 for e in entries if e["exit"] == 1)
-
-    summary = f"{total} invocations"
-    if blocked:
-        summary += f", \033[31m{blocked} blocked\033[0m"
-    if errors:
-        summary += f", \033[33m{errors} errors\033[0m"
-
-    print(summary)
-    print()
-    print("\033[2mTip: If a hook isn't appearing here, check that it's wrapped with debug-wrap.sh\033[0m")
-
-
-def watch_logs(log_path):
-    """Live tail the log file."""
-    print(f"Watching {log_path} (Ctrl+C to stop)")
-    print("-" * 60)
-
-    if not log_path.exists():
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        log_path.touch()
-
-    # Get initial file size
-    last_size = log_path.stat().st_size
-
-    try:
-        while True:
-            current_size = log_path.stat().st_size
-            if current_size > last_size:
-                with open(log_path) as f:
-                    f.seek(last_size)
-                    new_content = f.read()
-                    for line in new_content.strip().split("\n"):
-                        entry = parse_line(line)
-                        if entry:
-                            print(format_entry(entry))
-                last_size = current_size
-            elif current_size < last_size:
-                # File was truncated/cleared
-                last_size = 0
-            time.sleep(0.1)
-    except KeyboardInterrupt:
-        print("\nStopped.")
-
-
-def clear_logs(log_path):
-    """Clear the log file."""
-    if log_path.exists():
-        log_path.write_text("")
-        print(f"Cleared: {log_path}")
-    else:
-        print("No log file to clear.")
-
-
-def main():
-    parser = argparse.ArgumentParser(description="View hook debug logs")
-    parser.add_argument("--watch", "-w", action="store_true", help="Live tail the log")
-    parser.add_argument("--errors", "-e", action="store_true", help="Only show errors")
-    parser.add_argument("--clear", "-c", action="store_true", help="Clear the log file")
-    parser.add_argument("--path", "-p", action="store_true", help="Print log file path")
-    parser.add_argument("--limit", "-n", type=int, default=50, help="Number of entries to show")
-
-    args = parser.parse_args()
-    log_path = get_log_path()
-
-    if args.path:
-        print(log_path)
-    elif args.clear:
-        clear_logs(log_path)
-    elif args.watch:
-        watch_logs(log_path)
-    else:
-        show_logs(log_path, errors_only=args.errors, limit=args.limit)
+    if args.watch:
+        with LOG.open() as f:
+            f.seek(0, 2)
+            while True:
+                line = f.readline()
+                if not line:
+                    time.sleep(0.3)
+                    continue
+                r = parse(line)
+                if r and keep(r, args):
+                    print(fmt(r), flush=True)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

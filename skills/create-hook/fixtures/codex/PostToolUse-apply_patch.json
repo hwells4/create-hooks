@@ -1,0 +1,15 @@
+{
+  "session_id": "sess-codex",
+  "turn_id": "turn-1",
+  "transcript_path": "/tmp/project/.t.jsonl",
+  "cwd": "/tmp/project",
+  "model": "gpt-6-sol",
+  "permission_mode": "default",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "apply_patch",
+  "tool_input": {
+    "command": "*** Begin Patch\n*** Update File: src/app.ts\n@@\n-a\n+b\n*** End Patch\n"
+  },
+  "tool_response": "Success. Updated the following files:\nM src/app.ts",
+  "tool_use_id": "call_03"
+}

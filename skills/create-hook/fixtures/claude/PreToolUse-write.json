@@ -1,0 +1,13 @@
+{
+  "session_id": "sess-claude",
+  "transcript_path": "/tmp/project/.t.jsonl",
+  "cwd": "/tmp/project",
+  "permission_mode": "default",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "/tmp/project/src/app.ts",
+    "content": "export {}\n"
+  },
+  "tool_use_id": "toolu_02"
+}

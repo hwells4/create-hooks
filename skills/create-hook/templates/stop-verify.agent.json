@@ -1,0 +1,16 @@
+{
+  "_template": "Agent hook: a subagent with Read/Grep/Glob (up to 50 turns) checks the work before the turn ends. Claude Code only, experimental. Costs a model run on every Stop: scope the prompt to a concrete, checkable condition.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "Verify the agent's claimed result before it stops. Hook input: $ARGUMENTS\n\nRead last_assistant_message. For each file it says it changed, open the file and confirm the change is present and complete (no TODO stubs, no placeholder bodies). Respond {\"ok\": true} when every claim holds, otherwise {\"ok\": false, \"reason\": \"<the first claim that does not hold, and where>\"}.",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

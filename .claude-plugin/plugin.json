@@ -1,18 +1,12 @@
 {
   "name": "create-hooks",
-  "description": "Quickly scaffold Claude Code hooks with templates, validation, and conflict analysis",
-  "version": "1.2.1",
+  "description": "Create, debug, audit, and port lifecycle hooks that run in both Claude Code and Codex",
+  "version": "2.0.0",
   "author": {
     "name": "Harrison Wells",
     "url": "https://github.com/hwells4"
   },
   "license": "MIT",
   "repository": "https://github.com/hwells4/create-hooks",
-  "keywords": [
-    "claude-code",
-    "hooks",
-    "automation",
-    "scaffolding",
-    "templates"
-  ]
+  "keywords": ["claude-code", "codex", "hooks", "guardrails", "automation"]
 }

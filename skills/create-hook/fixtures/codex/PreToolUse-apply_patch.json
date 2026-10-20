@@ -1,0 +1,14 @@
+{
+  "session_id": "s1",
+  "turn_id": "t1",
+  "transcript_path": "/tmp/t.jsonl",
+  "cwd": "/tmp/project",
+  "model": "gpt-6-sol",
+  "permission_mode": "default",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "apply_patch",
+  "tool_input": {
+    "command": "*** Begin Patch\n*** Update File: src/app.ts\n@@\n-old\n+new\n*** Add File: /tmp/project/.env\n+SECRET=1\n*** End Patch\n"
+  },
+  "tool_use_id": "call_01"
+}

@@ -1,0 +1,13 @@
+{
+  "session_id": "sess-codex",
+  "turn_id": "turn-1",
+  "transcript_path": "/tmp/project/.t.jsonl",
+  "cwd": "/tmp/project",
+  "model": "gpt-6-sol",
+  "permission_mode": "default",
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "git status"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "session_id": "sess-claude",
+  "transcript_path": "/tmp/project/.t.jsonl",
+  "cwd": "/tmp/project",
+  "permission_mode": "default",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/tmp/project/src/app.ts",
+    "old_string": "a",
+    "new_string": "b",
+    "replace_all": false
+  },
+  "tool_response": {
+    "filePath": "/tmp/project/src/app.ts",
+    "success": true
+  },
+  "tool_use_id": "toolu_03"
+}
