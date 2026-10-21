@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "_comment": "Template: Intelligent Stop Hook (prompt-based). Evaluates task completion using LLM instead of script.",
+  "_usage": "Copy the 'hooks' section to your settings.json. Customize the prompt for your workflow.",
+
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "You are evaluating whether Claude should stop working.\n\nReview the session context and check:\n\n1. **Task Completion**: Were all explicitly requested tasks completed?\n2. **Code Changes**: Are there uncommitted changes that should be committed?\n3. **Tests**: If code was modified, were relevant tests run?\n4. **Errors**: Are there unresolved errors or failures?\n5. **Follow-up**: Did the user's request imply additional steps?\n\nIMPORTANT: If stop_hook_active is true in the context below, Claude is already continuing from a previous stop hook. Allow stopping to prevent infinite loops.\n\nSession context:\n$ARGUMENTS\n\nRespond with valid JSON:\n- If Claude should stop: {\"decision\": \"approve\", \"reason\": \"Task completed successfully\"}\n- If Claude should continue: {\"decision\": \"block\", \"reason\": \"Specific instruction for what Claude should do next\"}",
+            "timeout": 45
+          }
+        ]
+      }
+    ]
+  }
+}

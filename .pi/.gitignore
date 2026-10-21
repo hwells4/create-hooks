@@ -1,0 +1,12 @@
+# Managed Agents/Pi runtime cache generated inside sandboxes.
+*
+
+# Keep the repository-owned Pi configuration and migrated skills.
+!.gitignore
+!settings.json
+!APPEND_SYSTEM.md
+!skills/
+!skills/create-hook/
+!skills/create-hook/**
+__pycache__/
+*.py[cod]

@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "status": "baseline_ready",
+  "repo": "hwells4/create-hooks",
+  "branch": "main",
+  "generatedAt": "2026-06-16T19:47:34Z",
+  "baseline": {
+    "managedAgentsHooks": true,
+    "piSettings": true,
+    "piInstructions": true,
+    "piSkills": 1,
+    "piExtensions": 0
+  },
+  "sourceConfigs": [
+    "README.md",
+    ".claude-plugin/plugin.json",
+    "commands/create-hook.md",
+    "skills/create-hook/SKILL.md",
+    "skills/create-hook/references/*.md",
+    "skills/create-hook/workflows/*.md",
+    "skills/create-hook/templates/*",
+    "skills/create-hook/scripts/*",
+    ".pi/settings.json"
+  ],
+  "followUps": [
+    {
+      "title": "Add Pi-native command helpers for hook creation and validation",
+      "whyItMatters": "The existing Claude setup includes a slash command and helper scripts. A Pi-native helper would make those workflows easier to discover and run in Managed Agents.",
+      "recommendedAction": "Create a small, reviewed Pi extension or command workflow that exposes safe actions for analyzing hooks, showing templates, validating hook settings, and viewing hook logs.",
+      "needsUserApproval": true
+    },
+    {
+      "title": "Review hook security guardrails before automatic enforcement",
+      "whyItMatters": "The repository documents guardrails for dangerous shell commands, sensitive files, MCP tools, and stop hooks. Turning those examples into enforcement changes how agents are allowed to act.",
+      "recommendedAction": "Have a follow-up migration agent propose explicit Managed Agents guardrails and only implement the ones the owner approves.",
+      "needsUserApproval": true
+    },
+    {
+      "title": "Decide how to handle external integrations",
+      "whyItMatters": "Some templates mention notifications, MCP tools, and environment variables. These may need secrets, account permissions, or organization-specific choices.",
+      "recommendedAction": "List the integrations the owner actually wants, name the required secrets without exposing values, and implement only approved integrations.",
+      "needsUserApproval": true
+    }
+  ],
+  "verification": {
+    "commandsRun": [
+      "chmod +x .managed-agents/setup.sh .managed-agents/start.sh .managed-agents/stop.sh .pi/skills/create-hook/scripts/hook-log.py .pi/skills/create-hook/scripts/validate-hook.py .pi/skills/create-hook/templates/*.sh .pi/skills/create-hook/templates/*.py",
+      "bash -n .managed-agents/setup.sh .managed-agents/start.sh .managed-agents/stop.sh",
+      "MANAGED_AGENTS_BOOT_MODE=fresh .managed-agents/start.sh",
+      "MANAGED_AGENTS_BOOT_MODE=fresh .managed-agents/stop.sh",
+      "python3 -m py_compile .pi/skills/create-hook/scripts/hook-log.py .pi/skills/create-hook/scripts/validate-hook.py",
+      "python3 -m json.tool .managed-agents/onboarding.json",
+      "python3 -m json.tool .pi/settings.json"
+    ],
+    "passed": true
+  }
+}
